@@ -1,0 +1,17 @@
+# Copyright (c) 2021 Przemyslaw Bida
+# SPDX-License-Identifier: Apache-2.0
+
+manifest:
+  self:
+    path: ot-sensor
+
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+
+  projects:
+    - name: sdk-nrf
+      remote: ncs
+      revision: main
+      path: nrf
+      import: true
