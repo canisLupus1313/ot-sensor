@@ -1,0 +1,27 @@
+/* Copyright (c) 2020 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+ &i2c1 {
+    hts221@5f {
+        compatible = "st,hts221";
+        reg = <0x5f>;
+        label = "HTS221";
+        status = "okay";
+    };
+};
+
+&zephyr_udc0 {
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "CDC_ACM_0";
+	};
+};
+
+/{
+	chosen {
+		zephyr,entropy = &rng;
+        zephyr,shell-uart = &cdc_acm_uart0;
+	};
+};
