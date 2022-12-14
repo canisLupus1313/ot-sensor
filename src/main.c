@@ -4,19 +4,17 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <zephyr.h>
-#include <logging/log.h>
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
-#include <drivers/uart.h>
-#include <usb/usb_device.h>
+#include <zephyr/drivers/uart.h>
+
 
 #include <openthread/thread.h>
 //#include <coap_server_client_interface.h>
 #include <net/coap_utils.h>
-#include <net/openthread.h>
-#include <net/socket.h>
-
-#include <drivers/sensor.h>
+#include <zephyr/net/openthread.h>
+#include <zephyr/net/socket.h>
 
 #define MY_STACK_SIZE 2048
 #define MY_PRIORITY 10
@@ -37,11 +35,11 @@ static bool is_connected;
 static struct sockaddr_in6 unique_local_addr = {
 	.sin6_family = AF_INET6,
 	.sin6_port = htons(COAP_PORT),
-	.sin6_addr.s6_addr = {0xfd, 0x4d, 0xea, 0xfc, 0x6f, 0x32, 0xc7, 0xcf, 0x00, 0x00, 0x00, 0xff, 0xfe, 0x00, 0xfc, 0x11},
+	.sin6_addr.s6_addr = {0x00, 0x64, 0xff, 0x9b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x86, 0x66, 0xda, 0x12},
 	.sin6_scope_id = 0U
 };
 
-static const char *const temp_option[] = { "ambient", 0 };
+static const char *const coap_option[] = { "hello", 0 };
 
 LOG_MODULE_REGISTER(cli_sample, CONFIG_OT_SENSOR_HTS_LOG_LEVEL);
 
@@ -77,49 +75,56 @@ static void on_thread_state_changed(uint32_t flags, void *context)
 	}
 }
 
+int coap_reply(const struct coap_packet *response, struct coap_reply *reply, const struct sockaddr *from)
+{
+	int ret = 0;
+	const uint8_t *payload;
+	char buf[128] = {0};
+	uint16_t payload_size = 0u;
+
+	ARG_UNUSED(reply);
+	ARG_UNUSED(from);
+
+	LOG_INF("COAP received.");
+
+	payload = coap_packet_get_payload(response, &payload_size);
+
+	if(payload == NULL)
+	{
+		LOG_INF("COAP recived invalid data.");
+		goto exit;
+	}
+	memcpy(buf, payload, payload_size);
+	LOG_INF("COAP DATA RECEIVED: %s", buf);
+
+
+exit:
+	return ret;
+}
+
 void process_sensor_data(void* arg1, void* arg2, void* arg3) {
-	const struct device *dev = device_get_binding("HTS221");
-	struct sensor_value temp, hum;
-	uint8_t payload[5] = {0};
 
 	ARG_UNUSED(arg1);
 	ARG_UNUSED(arg2);
 	ARG_UNUSED(arg3);
 	while(1) {
-		if (!is_connected) {
-			k_sleep(K_FOREVER);
-		}
-		if (sensor_sample_fetch(dev) < 0) {
-			LOG_ERR("Sensor sample update error");
-			return;
-		}
-
-		if (sensor_channel_get(dev, SENSOR_CHAN_AMBIENT_TEMP, &temp) < 0) {
-			LOG_ERR("Cannot read HTS221 temperature channel");
-			return;
-		}
-
-		if (sensor_channel_get(dev, SENSOR_CHAN_HUMIDITY, &hum) < 0) {
-			LOG_ERR("Cannot read HTS221 humidity channel");
-			return;
-		}
-
-		/* display temperature */
-		//LOG_INF("Temperature:%d %d C", (temp.val1), (temp.val2));
-		payload[0] = temp.val1;
-		payload[1] = temp.val2;
-		payload[3] = hum.val1;
-		payload[4] = hum.val2;
 
 		/* display humidity */
 		//LOG_INF("Relative Humidity:%d %d", (hum.val1), (hum.val2));
 		LOG_INF("Sending coap");
-		if (coap_send_request(COAP_METHOD_PUT,
-			(const struct sockaddr *)&unique_local_addr,
-			temp_option, payload, sizeof(payload), NULL) < 0) {
-				LOG_ERR("Failed sending coap.");
-		} else {
-			LOG_INF("COAP send.");
+		if (is_connected)
+		{
+			if (coap_send_request(COAP_METHOD_GET,
+				(const struct sockaddr *)&unique_local_addr,
+				coap_option, 0, 0, coap_reply) < 0) {
+					LOG_ERR("Failed sending coap.");
+			} else {
+				LOG_INF("COAP send.");
+			}
+		}
+		else
+		{
+			LOG_INF("COAP Thread not connected.");
 		}
 		k_msleep(10000);
 	}
